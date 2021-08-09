@@ -1,0 +1,16 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1e1d252ad30b540c83c60a206df1171bea8c809afa0ac55ba210015cf8270f98 # shrinks to n = Gf(2), m = Gf(1)
+cc 56130d430a29a951316bcf0b578c28813741c1d8eba848f50831d937c113cf69 # shrinks to n = Gf(2), m = Gf(1)
+cc b4dad216f0386984749178b7a1f7d72e1993e06a096c100b198866c914bebf40 # shrinks to n = Gf(8), m = Gf(17), l = Gf(7)
+cc 3808657d7da7cfdce912458ce33c908f41401e4578ff6bd165fa7149f6c77a04 # shrinks to x = 9, y = 9
+cc 5566911fae2adea1401c8683263bbcaaab22da12b3803e7cd8b8a84beb75934f # shrinks to x = 3, y = 3
+cc a2dcc561a3c2fd4d82913397753b33b0ce2a8a8d56ede69449c9ee078ff80f72 # shrinks to m = Poly([Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(1)]), n = Gf(1), i = 17
+cc 3ce1be058103b6d671f97232cba59447498fa4b88857ee91534df41d6df3e132 # shrinks to n = Gf(0), i = 0
+cc 9ba80381c327b03e03036a745c59e1140ac7a9068250e98cd1a2b9e0e647b885 # shrinks to m = Poly([Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(0), Gf(1)]), n = Gf(1), i = 17
+cc 7c2c6786098ceb1cf4d97924b35feb44c1ed8af61b0363cbbc7fadb83e0dc5da # shrinks to (m, t, noise) = (Poly([Gf(159), Gf(218), Gf(156), Gf(130), Gf(199), Gf(200), Gf(69), Gf(108), Gf(113), Gf(58), Gf(61), Gf(156), Gf(54), Gf(141), Gf(175), Gf(151), Gf(182), Gf(157), Gf(69), Gf(210), Gf(80), Gf(17), Gf(63), Gf(245), Gf(53), Gf(254), Gf(132)]), 10, [(24, Gf(199))])
+cc bfd5252e704405fad6408155681edaca8f0ccaefd90eca84913a0375a8158935 # shrinks to (m, t, noise) = (Poly([Gf(70), Gf(21), Gf(55), Gf(0), Gf(143)]), 2, [(3, Gf(57))])
