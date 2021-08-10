@@ -232,20 +232,21 @@ impl std::ops::DivAssign for Gf<u8> {
     }
 }
 
-// The inner Vec must not have leading zeros.
+// Polynomial as coefficient vector in little endian.
+// The inner Vec must not have trailing zeros.
 #[derive(Clone, Debug, PartialEq, Eq, Arbitrary)]
 struct Poly<T>(pub Vec<T>);
 
 #[cfg(test)]
 fn poly(size: impl Into<proptest::collection::SizeRange>) -> impl Strategy<Value = Poly<Gf<u8>>> {
     proptest::collection::vec(any::<Gf<u8>>(), size)
-        .prop_filter("leading zeros", |v| {
+        .prop_filter("trailing zeros", |v| {
             v.last().map(|n| n.0 != 0).unwrap_or(true)
         })
         .prop_map(Poly)
 }
 
-fn yank_leading_zeros(v: &mut Vec<Gf<u8>>) {
+fn yank_trailing_zeros(v: &mut Vec<Gf<u8>>) {
     while let Some(n) = v.last() {
         if n.0 != 0 {
             break;
@@ -266,7 +267,7 @@ impl std::ops::AddAssign<&Self> for Poly<Gf<u8>> {
             }
             self.0.extend(&rhs.0[self.0.len()..]);
         }
-        yank_leading_zeros(&mut self.0);
+        yank_trailing_zeros(&mut self.0);
     }
 }
 
@@ -307,7 +308,7 @@ impl std::ops::MulAssign<&Self> for Poly<Gf<u8>> {
                 z[i + j] += n * m;
             }
         }
-        yank_leading_zeros(&mut z);
+        yank_trailing_zeros(&mut z);
         self.0 = z;
     }
 }
@@ -348,7 +349,7 @@ impl std::ops::RemAssign<&Self> for Poly<Gf<u8>> {
             }
             self.0.pop();
         }
-        yank_leading_zeros(&mut self.0);
+        yank_trailing_zeros(&mut self.0);
     }
 }
 
@@ -379,7 +380,7 @@ impl Poly<Gf<u8>> {
             }
             self.0.pop();
         }
-        yank_leading_zeros(&mut self.0);
+        yank_trailing_zeros(&mut self.0);
         Self(denom)
     }
 
@@ -501,7 +502,7 @@ fn syndrome(y: &Poly<Gf<u8>>, t: usize) -> Poly<Gf<u8>> {
     for i in 1..=2 * t {
         s.push(y.apply(Gf::exp(i)));
     }
-    yank_leading_zeros(&mut s);
+    yank_trailing_zeros(&mut s);
     Poly(s)
 }
 
