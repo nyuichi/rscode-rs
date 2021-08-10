@@ -3,7 +3,7 @@ use proptest_derive::Arbitrary;
 
 // Galois field. The internal value is vector representation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Arbitrary)]
-struct Gf<T>(pub T);
+struct Gf<T>(T);
 
 //     | 0x0 0x1 0x2 0x3 0x4 0x5 0x6 0x7 0x8 0x9 0xa 0xb 0xc 0xd 0xe 0xf
 // ----+----------------------------------------------------------------
@@ -68,11 +68,11 @@ const fn gf256_vec_to_reg(n: usize) -> u8 {
     if n == 0 {
         255 // dummy
     } else {
-        let mut i: u8 = 0;
-        while GF256_REG_TO_VEC[i as usize] != (n as u8) {
-            i = i.wrapping_add(1);
+        let mut i = 0usize;
+        while GF256_REG_TO_VEC[i] != (n as u8) {
+            i += 1;
         }
-        i
+        i as u8
     }
 }
 
@@ -141,21 +141,6 @@ impl std::ops::AddAssign for Gf<u8> {
     }
 }
 
-impl std::ops::Sub for Gf<u8> {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        #[allow(clippy::suspicious_arithmetic_impl)]
-        Self(self.0 ^ rhs.0)
-    }
-}
-
-impl std::ops::SubAssign for Gf<u8> {
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
-    }
-}
-
 impl std::ops::Mul for Gf<u8> {
     type Output = Self;
 
@@ -209,7 +194,7 @@ impl std::ops::Div for Gf<u8> {
         if rhs.0 == 0 {
             panic!("divide by zero");
         }
-        if self.0 == 0 || rhs.0 == 1 {
+        if self.0 == 0 {
             self
         } else {
             Self::exp(self.log() + 255 - rhs.log())
@@ -235,7 +220,7 @@ impl std::ops::DivAssign for Gf<u8> {
 // Polynomial as coefficient vector in little endian.
 // The inner Vec must not have trailing zeros.
 #[derive(Clone, Debug, PartialEq, Eq, Arbitrary)]
-struct Poly<T>(pub Vec<T>);
+struct Poly<T>(Vec<T>);
 
 #[cfg(test)]
 fn poly(size: impl Into<proptest::collection::SizeRange>) -> impl Strategy<Value = Poly<Gf<u8>>> {
@@ -247,27 +232,37 @@ fn poly(size: impl Into<proptest::collection::SizeRange>) -> impl Strategy<Value
 }
 
 fn yank_trailing_zeros(v: &mut Vec<Gf<u8>>) {
-    while let Some(n) = v.last() {
-        if n.0 != 0 {
+    let mut l = v.len();
+    for i in (0..v.len()).rev() {
+        if v[i].0 != 0 {
             break;
         }
-        v.pop();
+        l -= 1;
     }
+    v.truncate(l);
 }
 
 impl std::ops::AddAssign<&Self> for Poly<Gf<u8>> {
     fn add_assign(&mut self, rhs: &Self) {
-        if self.0.len() >= rhs.0.len() {
-            for i in 0..rhs.0.len() {
-                self.0[i] += rhs.0[i];
+        match self.0.len().cmp(&rhs.0.len()) {
+            std::cmp::Ordering::Less => {
+                for i in 0..self.0.len() {
+                    self.0[i] += rhs.0[i];
+                }
+                self.0.extend(&rhs.0[self.0.len()..]);
             }
-        } else {
-            for i in 0..self.0.len() {
-                self.0[i] += rhs.0[i];
+            std::cmp::Ordering::Equal => {
+                for i in 0..self.0.len() {
+                    self.0[i] += rhs.0[i];
+                }
+                yank_trailing_zeros(&mut self.0);
             }
-            self.0.extend(&rhs.0[self.0.len()..]);
+            std::cmp::Ordering::Greater => {
+                for i in 0..rhs.0.len() {
+                    self.0[i] += rhs.0[i];
+                }
+            }
         }
-        yank_trailing_zeros(&mut self.0);
     }
 }
 
@@ -313,6 +308,7 @@ impl std::ops::MulAssign<&Self> for Poly<Gf<u8>> {
     }
 }
 
+#[cfg(test)]
 impl std::ops::Mul for Poly<Gf<u8>> {
     type Output = Self;
 
@@ -345,7 +341,7 @@ impl std::ops::RemAssign<&Self> for Poly<Gf<u8>> {
         for _ in 0..self.0.len() - rhs.0.len() + 1 {
             let n = self.0[self.0.len() - 1] / rhs.0[rhs.0.len() - 1];
             for (x, y) in self.0.iter_mut().rev().zip(rhs.0.iter().rev()) {
-                *x -= n * *y;
+                *x += n * *y;
             }
             self.0.pop();
         }
@@ -376,7 +372,7 @@ impl Poly<Gf<u8>> {
         for n in denom.iter_mut().rev() {
             *n = self.0[self.0.len() - 1] / rhs.0[rhs.0.len() - 1];
             for (x, y) in self.0.iter_mut().rev().zip(rhs.0.iter().rev()) {
-                *x -= *n * *y;
+                *x += *n * *y;
             }
             self.0.pop();
         }
@@ -402,10 +398,9 @@ impl Poly<Gf<u8>> {
         r
     }
 
-    #[cfg(test)]
     fn degree(&self) -> usize {
         match self.0.len() {
-            0 | 1 => 0,
+            0 => 0,
             n => n - 1,
         }
     }
@@ -414,7 +409,7 @@ impl Poly<Gf<u8>> {
         if k.0 == 0 {
             self.0.clear();
         } else {
-            for n in self.0.iter_mut() {
+            for n in &mut self.0 {
                 *n *= k;
             }
         }
@@ -457,7 +452,12 @@ proptest! {
     }
 }
 
+// This is the heart of Reed-Solomon coding.
+// 2 * t is the number of check symbols.
+// We assume 2 * t = n - k, where n is a block length and k is a message length,
+// and it must hold k < n <= q where q is the order of the field i.e. 256.
 fn generator(t: usize) -> Poly<Gf<u8>> {
+    assert!(2 * t <= 256);
     let mut x = Poly(vec![Gf(1u8)]);
     for i in 1..=2 * t {
         x *= &Poly(vec![Gf::exp(i), Gf(1u8)]);
@@ -487,6 +487,8 @@ proptest! {
 }
 
 fn encode(m: &Poly<Gf<u8>>, t: usize) -> Poly<Gf<u8>> {
+    assert_ne!(t, 0);
+    assert!(m.0.len() + 2 * t <= 256);
     // m(x) * x**e mod g(x) = C(x)
     let mut w = Poly(std::iter::repeat(Gf(0u8)).take(2 * t).collect());
     w.0.extend(&m.0);
@@ -563,7 +565,7 @@ fn solve(s: &Poly<Gf<u8>>, t: usize) -> (Poly<Gf<u8>>, Poly<Gf<u8>>) {
         std::mem::swap(&mut r0, &mut r1);
         std::mem::swap(&mut a0, &mut a1);
     }
-    while r1.0.len() > t {
+    while r1.degree() >= t {
         let mut q = r0.div(&r1);
         std::mem::swap(&mut r0, &mut r1);
         q *= &a1;
@@ -586,6 +588,7 @@ proptest! {
         }
         let s = syndrome(&w, t);
         let (sigma, eta) = solve(&s, t);
+        // The pair of sigma and eta is the unique solution subject to the following.
         prop_assert!(sigma.degree() <= t);
         prop_assert!(eta.degree() < t);
         prop_assert_eq!(sigma.gcd(&eta), Poly(vec![Gf(1u8)]));
@@ -594,6 +597,9 @@ proptest! {
 }
 
 fn correct(y: &mut Poly<Gf<u8>>, t: usize) {
+    assert_ne!(t, 0);
+    assert!(y.0.len() >= 2 * t);
+    assert!(y.0.len() <= 256);
     // Y(x) = w(x) + E(x) = g(x) * q(x) + E(x).
     // So, s[j] != 0 means E[j] != 0
     let s = syndrome(y, t);
@@ -666,8 +672,10 @@ fn main() {
                 .unwrap()
                 .parse()
                 .expect("--encode takes integer as an argument");
+            assert_ne!(t, 0);
             let mut buf = vec![];
             std::io::stdin().read_to_end(&mut buf).expect("read_to_end");
+            assert!(buf.len() + 2 * t <= 256);
             let enc = encode_bytes(&buf, t);
             std::io::stdout().write_all(&enc).expect("write_all");
         }
@@ -677,8 +685,10 @@ fn main() {
                 .unwrap()
                 .parse()
                 .expect("--decode takes integer as an argument");
+            assert_ne!(t, 0);
             let mut buf = vec![];
             std::io::stdin().read_to_end(&mut buf).expect("read_to_end");
+            assert!(buf.len() <= 256);
             let enc = decode_bytes(&buf, t);
             std::io::stdout().write_all(&enc).expect("write_all");
         }
